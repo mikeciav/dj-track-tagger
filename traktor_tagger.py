@@ -281,11 +281,11 @@ class Player:
 
 class ProgressBar(QWidget):
     seeked = pyqtSignal(float)
-    PAD = 12; BAR_H = 5; R = 7
+    PAD = 12; BAR_H = 5; R = 5
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(28)
+        self.setFixedHeight(18)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._frac = 0.0
         self._dragging = False
@@ -298,6 +298,7 @@ class ProgressBar(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
+        p.fillRect(0, 0, w, h, QColor(C["pb_bg"]))
         cy = h // 2
         x0 = self.PAD + self.R
         x1 = w - self.PAD - self.R
@@ -653,9 +654,14 @@ class DJTagger(QMainWindow):
         root.addWidget(splitter, 1)
 
         # ── Three-panel bottom bar ────────────────────────────────────────
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background:{C['border2']};")
+        root.addWidget(sep)
+
         bottom = QFrame()
-        bottom.setStyleSheet(f"background:{C['pb_bg']};border-top:1px solid {C['border2']};")
-        bottom.setFixedHeight(96)
+        bottom.setStyleSheet(f"background:{C['pb_bg']};")
+        bottom.setFixedHeight(104)
         bl = QHBoxLayout(bottom)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
@@ -676,23 +682,19 @@ class DJTagger(QMainWindow):
 
         self._det_title = QLabel("— select a track —")
         self._det_title.setStyleSheet(f"color:{C['text']};font-size:14px;font-weight:bold;background:transparent;")
-        self._det_title.setWordWrap(False)
+        self._det_title.setWordWrap(True)
         dpl.addWidget(self._det_title)
 
-        self._det_mix = QLabel("")
-        self._det_mix.setStyleSheet(f"color:{C['accent']};font-size:10px;font-style:italic;background:transparent;")
-        dpl.addWidget(self._det_mix)
-
         self._det_artist = QLabel("")
-        self._det_artist.setStyleSheet(f"color:{C['text_mid']};font-size:12px;background:transparent;")
+        self._det_artist.setStyleSheet(f"color:{C['text']};font-size:13px;background:transparent;")
         dpl.addWidget(self._det_artist)
 
         meta_row = QHBoxLayout()
         meta_row.setSpacing(12)
         self._det_album = QLabel("")
-        self._det_album.setStyleSheet(f"color:{C['text_dim']};font-size:10px;font-style:italic;background:transparent;")
+        self._det_album.setStyleSheet(f"color:{C['text_mid']};font-size:10px;font-style:italic;background:transparent;")
         self._det_year = QLabel("")
-        self._det_year.setStyleSheet(f"color:{C['text_dim']};font-size:10px;background:transparent;")
+        self._det_year.setStyleSheet(f"color:{C['text_mid']};font-size:10px;background:transparent;")
         meta_row.addWidget(self._det_album)
         meta_row.addWidget(self._det_year)
         meta_row.addStretch()
@@ -707,11 +709,23 @@ class DJTagger(QMainWindow):
         ctrl_panel.setStyleSheet(f"background:{C['pb_bg']};")
         cpl = QVBoxLayout(ctrl_panel)
         cpl.setContentsMargins(12, 8, 12, 8)
-        cpl.setSpacing(4)
+        cpl.setSpacing(0)
 
         self._prog = ProgressBar()
         self._prog.seeked.connect(self._scrub)
         cpl.addWidget(self._prog)
+
+        self._time_lbl = QLabel("0:00 / 0:00")
+        self._time_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._time_lbl.setStyleSheet(f"""
+            color: {C['text']}; font-size: 13px;
+            font-family: "Courier New", Menlo;
+            background: {C['pb_bg']}; letter-spacing: 1px;
+            padding: 0; margin: 0; border: none;
+        """)
+        self._time_lbl.setContentsMargins(0, 0, 0, 0)
+        cpl.addWidget(self._time_lbl)
+        cpl.addSpacing(4)
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(2)
@@ -720,9 +734,9 @@ class DJTagger(QMainWindow):
         def tb(text, cb, big=False, accent=False):
             b = QPushButton(text)
             col = C["accent"] if accent else C["text_mid"]
-            sz  = 17 if big else 12
+            sz  = 24 if big else 17
             b.setStyleSheet(f"""
-                QPushButton{{background:transparent;color:{col};border:none;font-size:{sz}px;padding:3px 8px;}}
+                QPushButton{{background:transparent;color:{col};border:none;font-size:{sz}px;padding:2px 10px;}}
                 QPushButton:hover{{background:{C['panel2']};border-radius:3px;}}
             """)
             b.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -736,15 +750,6 @@ class DJTagger(QMainWindow):
         btn_row.addWidget(tb("⏩", lambda: self.player_.seek_delta(+SEEK_S)))
         btn_row.addWidget(tb("⏭", self._next))
         cpl.addLayout(btn_row)
-
-        self._time_lbl = QLabel("0:00 / 0:00")
-        self._time_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._time_lbl.setStyleSheet(f"""
-            color: {C['text_dim']}; font-size: 9px;
-            font-family: "Courier New", Menlo;
-            background: transparent; letter-spacing: 1px;
-        """)
-        cpl.addWidget(self._time_lbl)
         bl.addWidget(ctrl_panel)
         bl.addWidget(_vdiv())
 
@@ -1199,7 +1204,6 @@ class DJTagger(QMainWindow):
         # ── Track details (left panel) ────────────────────────────────────
         if not self.track_:
             self._det_title.setText("— select a track —")
-            self._det_mix.setText("")
             self._det_artist.setText("")
             self._det_album.setText("")
             self._det_year.setText("")
@@ -1208,8 +1212,9 @@ class DJTagger(QMainWindow):
                 lbl.setStyleSheet(f"color:{C['text_dim']};font-size:11px;background:transparent;")
             return
         t = self.track_
-        self._det_title.setText(t.title or Path(t.path).stem)
-        self._det_mix.setText(t.mix or "")
+        title = t.title or Path(t.path).stem
+        full_title = f"{title} — {t.mix}" if t.mix else title
+        self._det_title.setText(full_title)
         self._det_artist.setText(t.artist or "")
         self._det_album.setText(t.album or "")
         self._det_year.setText(t.year or "")
@@ -1223,7 +1228,7 @@ class DJTagger(QMainWindow):
                 continue
             if chosen:
                 lbl.setText(" · ".join(chosen))
-                lbl.setStyleSheet(f"color:{C['text_mid']};font-size:11px;background:transparent;")
+                lbl.setStyleSheet(f"color:{C['text']};font-size:11px;background:transparent;")
             else:
                 lbl.setText("—")
                 lbl.setStyleSheet(f"color:{C['text_dim']};font-size:11px;background:transparent;")
