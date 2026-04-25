@@ -1,0 +1,144 @@
+{
+  "categories": [
+    {
+      "name": "Genre",
+      "field": "genre",
+      "multi_select": true,
+      "groups": [
+        {
+          "label": "Trance",
+          "tags": [
+            "Prog Trance",
+            "Uplifting Trance",
+            "Psytrance",
+            "Hard Trance",
+            "Anjuna",
+            "Balearic Trance",
+            "Tech Trance",
+            "Classic Trance",
+            "Full-On Trance",
+            "Big Room Trance"
+          ]
+        },
+        {
+          "label": "House",
+          "tags": [
+            "Deep House",
+            "Tech House",
+            "Acid House",
+            "Prog House",
+            "Disco House",
+            "Classic House",
+            "Trop House",
+            "Latin House"
+          ]
+        },
+        {
+          "label": "Techno",
+          "tags": [
+            "Minimal Techno",
+            "Industrial",
+            "Hard Techno",
+            "Detroit Techno",
+            "Acid Techno",
+            "Melodic Techno"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Vibe",
+      "field": "comment",
+      "prefix": "",
+      "multi_select": true,
+      "tags": [
+        "Acid",
+        "Aggressive",
+        "Arpeggiated",
+        "Bouncy",
+        "Bright",
+        "Broken",
+        "Bwaahhh",
+        "Chill",
+        "Classic",
+        "Dark",
+        "Dirty",
+        "Disco",
+        "Dreamy",
+        "Electro",
+        "Energetic",
+        "Epic",
+        "Euphoric",
+        "Fun",
+        "Funny",
+        "Funky",
+        "Glitchy",
+        "Goofy",
+        "Grindy",
+        "Hypnotic",
+        "Industrial",
+        "Jazzy",
+        "Joyful",
+        "Lovely",
+        "Melodic",
+        "Moody",
+        "Mysterious",
+        "Percussive",
+        "Poppy",
+        "Psychedelic",
+        "Punchy",
+        "Raw",
+        "Relaxed",
+        "Rolling",
+        "Sad",
+        "Sawtooth",
+        "Sharp",
+        "Soulful",
+        "Spacey",
+        "Spiritual",
+        "Squelchy",
+        "Techy",
+        "Tense",
+        "Tough",
+        "Tribal",
+        "Tropical",
+        "Uplifting",
+        "Weird"
+      ]
+    },
+    {
+      "name": "Vocals",
+      "field": "comment",
+      "prefix": "",
+      "multi_select": true,
+      "tags": [
+        "MaleVocal",
+        "FemaleVocal",
+        "NoVocal",
+        "Chant",
+        "Choir",
+        "RappedVocal",
+        "SampledVocal",
+        "SpokenWord",
+        "ChoppedVocal"
+      ]
+    },
+    {
+      "name": "Instruments",
+      "field": "comment",
+      "prefix": "",
+      "multi_select": true,
+      "tags": [
+        "Brass",
+        "Claps",
+        "Flute",
+        "Guitar",
+        "Percussion",
+        "Piano",
+        "Saxophone",
+        "Strings"
+      ]
+    }
+  ],
+  "last_folder": "/Users/mike/Music/Trance"
+}

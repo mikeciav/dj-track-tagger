@@ -1,0 +1,7 @@
+.DS_Store
+.claude/
+*.png
+*.jpg
+migrate_prefixes.py
+__pycache__/
+*.pyc
