@@ -607,7 +607,16 @@ class DJTagger(QMainWindow):
         trk_lbl.setStyleSheet(f"color:{C['text_dim']};font-size:9px;font-weight:bold;")
         self._count_lbl = QLabel("")
         self._count_lbl.setStyleSheet(f"color:{C['text_dim']};font-size:9px;")
-        hl.addWidget(trk_lbl); hl.addStretch(); hl.addWidget(self._count_lbl)
+        refresh_btn = QPushButton("↺")
+        refresh_btn.setFixedSize(20, 20)
+        refresh_btn.setStyleSheet(f"""
+            QPushButton{{background:transparent;color:{C['text_mid']};border:none;font-size:13px;padding:0;}}
+            QPushButton:hover{{color:{C['text']};}}
+        """)
+        refresh_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        refresh_btn.setToolTip("Reload folder")
+        refresh_btn.clicked.connect(self._refresh_folder)
+        hl.addWidget(trk_lbl); hl.addStretch(); hl.addWidget(self._count_lbl); hl.addSpacing(6); hl.addWidget(refresh_btn)
         ll.addWidget(hdr)
 
         self._file_list = QTreeWidget()
@@ -1112,6 +1121,11 @@ class DJTagger(QMainWindow):
         path = QFileDialog.getExistingDirectory(self, "Select music folder")
         if not path: return
         self._load_folder(path)
+
+    def _refresh_folder(self):
+        path = self.config_.data.get("last_folder", "")
+        if path:
+            self._load_folder(path)
 
     def _load_folder(self, path: str):
         if not Path(path).is_dir(): return
