@@ -30,7 +30,8 @@ except ImportError:
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QScrollArea, QSplitter, QCheckBox,
+    QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem,
+    QScrollArea, QSplitter, QCheckBox,
     QGridLayout, QHBoxLayout, QVBoxLayout, QLineEdit, QFileDialog,
     QMessageBox, QDialog, QTextEdit, QMenu,
 )
@@ -494,6 +495,7 @@ class DJTagger(QMainWindow):
         self._cur_idx    : Optional[int] = None   # track whose tags are displayed
         self._play_idx   : Optional[int] = None   # track currently playing
         self._tagged_idxs: set = set()            # indices of tracks with any tags
+        self._idx_to_item: dict = {}              # file index → QTreeWidgetItem
         self._vars       : dict = {}              # {cat_name: {tag: QCheckBox}}
 
         self._build_ui()
@@ -608,29 +610,43 @@ class DJTagger(QMainWindow):
         hl.addWidget(trk_lbl); hl.addStretch(); hl.addWidget(self._count_lbl)
         ll.addWidget(hdr)
 
-        self._file_list = QListWidget()
+        self._file_list = QTreeWidget()
+        self._file_list.setHeaderHidden(True)
+        self._file_list.setIndentation(16)
+        self._file_list.setAnimated(True)
+        self._file_list.setRootIsDecorated(False)
         self._file_list.setStyleSheet(f"""
-            QListWidget {{
+            QTreeWidget {{
                 background: {C['panel2']};
                 border: none; font-size: 11px; outline: none;
                 font-family: "Helvetica Neue", Helvetica, Arial;
             }}
-            QListWidget::item {{
-                padding: 6px 10px;
+            QTreeWidget::item {{
+                padding: 5px 6px;
                 border-bottom: 1px solid {C['border']};
             }}
-            QListWidget::item:selected {{
+            QTreeWidget::item:selected {{
                 background: #3a1800;
                 color: {C['text']};
                 border-left: 2px solid {C['accent']};
             }}
-            QListWidget::item:hover:!selected {{
+            QTreeWidget::item:hover:!selected {{
                 background: {C['hover']};
+            }}
+            QTreeWidget::branch {{
+                background: {C['panel2']};
+                image: none;
+                border-image: none;
+            }}
+            QTreeWidget::branch:!has-children:has-siblings,
+            QTreeWidget::branch:!has-children:!has-siblings {{
+                background: {C['panel2']};
+                border-left: 1px solid {C['border2']};
             }}
         """)
         self._file_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._file_list.currentRowChanged.connect(self._on_list_select)
-        self._file_list.doubleClicked.connect(lambda idx: self._play_track(idx.row()))
+        self._file_list.itemClicked.connect(self._on_item_clicked)
+        self._file_list.itemDoubleClicked.connect(self._on_item_double_clicked)
         ll.addWidget(self._file_list)
         splitter.addWidget(left)
 
@@ -650,7 +666,7 @@ class DJTagger(QMainWindow):
         scroll.setWidget(self._tag_container)
         splitter.addWidget(scroll)
 
-        splitter.setSizes([290, 850])
+        splitter.setSizes([340, 800])
         root.addWidget(splitter, 1)
 
         # ── Three-panel bottom bar ────────────────────────────────────────
@@ -674,7 +690,7 @@ class DJTagger(QMainWindow):
 
         # ── Left: track details (same width as track list) ────────────────
         det_panel = QWidget()
-        det_panel.setFixedWidth(290)
+        det_panel.setFixedWidth(340)
         det_panel.setStyleSheet(f"background:{C['pb_bg']};")
         dpl = QVBoxLayout(det_panel)
         dpl.setContentsMargins(14, 10, 14, 10)
@@ -1099,7 +1115,8 @@ class DJTagger(QMainWindow):
 
     def _load_folder(self, path: str):
         if not Path(path).is_dir(): return
-        self._folder_lbl.setText(Path(path).name)
+        root_path = Path(path)
+        self._folder_lbl.setText(root_path.name)
         self.player_.stop()
         self.track_ = None; self._cur_idx = None; self._play_idx = None; self.selected_ = {}
         self._refresh_checks()
@@ -1109,36 +1126,84 @@ class DJTagger(QMainWindow):
         self.config_.data["last_folder"] = path
         self.config_.save()
 
-        self._files = sorted(
-            str(f) for f in Path(path).rglob("*")
-            if f.suffix.lower() in SUPPORTED
-        )
-
+        self._files = []
         self._tagged_idxs.clear()
+        self._idx_to_item.clear()
         self._file_list.blockSignals(True)
         self._file_list.clear()
-        self._status(f"Reading tags for {len(self._files)} tracks…")
-        QApplication.processEvents()
-        for i, fp in enumerate(self._files):
-            item = QListWidgetItem(f"{i+1:>3}  {Path(fp).stem}")
+
+        def _add_dir(parent, dir_path: Path):
+            """Recursively populate tree. Folders first, then files, both sorted."""
             try:
-                tagged = any(v for v in self.config_.parse(TrackMeta(fp)).values())
-            except Exception:
-                tagged = False
-            if tagged:
-                self._tagged_idxs.add(i)
-            item.setForeground(QColor(C["text"] if tagged else C["text_dim"]))
-            self._file_list.addItem(item)
+                entries = sorted(dir_path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+            except PermissionError:
+                return
+            for entry in entries:
+                if entry.is_dir():
+                    folder_item = QTreeWidgetItem(parent, [f"+ 📁  {entry.name}"])
+                    folder_item.setForeground(0, QColor(C["text_mid"]))
+                    font = folder_item.font(0)
+                    font.setBold(True)
+                    folder_item.setFont(0, font)
+                    folder_item.setData(0, Qt.ItemDataRole.UserRole, None)
+                    _add_dir(folder_item, entry)
+                    # Remove empty folders
+                    if folder_item.childCount() == 0:
+                        parent.removeChild(folder_item)
+                    else:
+                        folder_item.setExpanded(False)
+                elif entry.suffix.lower() in SUPPORTED:
+                    idx = len(self._files)
+                    self._files.append(str(entry))
+                    try:
+                        tagged = any(v for v in self.config_.parse(TrackMeta(str(entry))).values())
+                    except Exception:
+                        tagged = False
+                    if tagged:
+                        self._tagged_idxs.add(idx)
+                    track_item = QTreeWidgetItem(parent, [entry.stem])
+                    track_item.setData(0, Qt.ItemDataRole.UserRole, idx)
+                    track_item.setForeground(0, QColor(C["text"] if tagged else C["text_dim"]))
+                    self._idx_to_item[idx] = track_item
+
+        self._status(f"Loading…")
+        QApplication.processEvents()
+        _add_dir(self._file_list.invisibleRootItem(), root_path)
         self._file_list.blockSignals(False)
 
         self._count_lbl.setText(f"{len(self._files)}")
         self._status(f"{len(self._files)} track(s) found.  Click to view tags · double-click to play.")
 
-    def _on_list_select(self, row: int):
-        """Single click — show tags for this track without interrupting playback."""
-        if row < 0 or row >= len(self._files): return
-        self._cur_idx = row
-        path = self._files[row]
+    def _on_item_clicked(self, item: "QTreeWidgetItem"):
+        """Single click — show tags for track items; toggle expand for folder items."""
+        idx = item.data(0, Qt.ItemDataRole.UserRole)
+        if idx is None:
+            self._toggle_folder(item)
+            return
+        self._select_track(idx)
+
+    def _on_item_double_clicked(self, item: "QTreeWidgetItem"):
+        """Double click — play a track item; toggle expand on folder items."""
+        idx = item.data(0, Qt.ItemDataRole.UserRole)
+        if idx is None:
+            self._toggle_folder(item)
+            return
+        self._play_track(idx)
+
+    def _toggle_folder(self, item: "QTreeWidgetItem"):
+        expanded = not item.isExpanded()
+        item.setExpanded(expanded)
+        t = item.text(0)
+        if expanded and t.startswith("+ 📁  "):
+            item.setText(0, "- 📁  " + t[len("+ 📁  "):])
+        elif not expanded and t.startswith("- 📁  "):
+            item.setText(0, "+ 📁  " + t[len("- 📁  "):])
+
+    def _select_track(self, idx: int):
+        """Load tags for a track without interrupting playback."""
+        if idx < 0 or idx >= len(self._files): return
+        self._cur_idx = idx
+        path = self._files[idx]
         self.track_    = TrackMeta(path)
         self.selected_ = self.config_.parse(self.track_)
         self._refresh_checks()
@@ -1151,19 +1216,21 @@ class DJTagger(QMainWindow):
 
         # Update view if not already on this track
         if self._cur_idx != idx:
-            self._file_list.blockSignals(True)
-            self._file_list.setCurrentRow(idx)
-            self._file_list.blockSignals(False)
-            self._on_list_select(idx)
+            self._select_track(idx)
+            item = self._idx_to_item.get(idx)
+            if item:
+                self._file_list.blockSignals(True)
+                self._file_list.setCurrentItem(item)
+                self._file_list.blockSignals(False)
 
         # Move the playing highlight
         if self._play_idx is not None and self._play_idx != idx:
             self._refresh_item_colors(self._play_idx)
         self._play_idx = idx
-        item = self._file_list.item(idx)
+        item = self._idx_to_item.get(idx)
         if item:
-            item.setBackground(QColor(C["accent"]))
-            item.setForeground(QColor(C["text"]))
+            item.setBackground(0, QColor(C["accent"]))
+            item.setForeground(0, QColor(C["text"]))
 
         if self.player_.available:
             self.player_.stop()
@@ -1174,10 +1241,10 @@ class DJTagger(QMainWindow):
 
     def _refresh_item_colors(self, idx: int):
         """Restore a non-playing item to its normal tagged/untagged colours."""
-        item = self._file_list.item(idx)
+        item = self._idx_to_item.get(idx)
         if not item: return
-        item.setBackground(QColor(0, 0, 0, 0))
-        item.setForeground(QColor(C["text"] if idx in self._tagged_idxs else C["text_dim"]))
+        item.setBackground(0, QColor(0, 0, 0, 0))
+        item.setForeground(0, QColor(C["text"] if idx in self._tagged_idxs else C["text_dim"]))
 
     # ── Save ──────────────────────────────────────────────────────────────────
 
