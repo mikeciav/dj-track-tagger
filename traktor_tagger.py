@@ -608,9 +608,9 @@ class DJTagger(QMainWindow):
         self._count_lbl = QLabel("")
         self._count_lbl.setStyleSheet(f"color:{C['text_dim']};font-size:9px;")
         refresh_btn = QPushButton("↺")
-        refresh_btn.setFixedSize(20, 20)
+        refresh_btn.setFixedSize(26, 26)
         refresh_btn.setStyleSheet(f"""
-            QPushButton{{background:transparent;color:{C['text_mid']};border:none;font-size:13px;padding:0;}}
+            QPushButton{{background:transparent;color:{C['text_mid']};border:none;font-size:16px;padding:0;}}
             QPushButton:hover{{color:{C['text']};}}
         """)
         refresh_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -815,12 +815,9 @@ class DJTagger(QMainWindow):
                     rhl.addSpacing(16)
             return row_w
 
-        # First two categories (Genre, Vibe): one per row
-        for cat in cats[:2]:
+        # All categories: one per row
+        for cat in cats:
             tpl.addWidget(_tag_row([cat["name"]]))
-        # Remaining categories (Vocals, Instruments): share one row
-        if len(cats) > 2:
-            tpl.addWidget(_tag_row([c["name"] for c in cats[2:]]))
 
         tpl.addStretch()
         bl.addWidget(tags_panel, 1)
@@ -1122,6 +1119,11 @@ class DJTagger(QMainWindow):
         if not path: return
         self._load_folder(path)
 
+    def _refresh_count(self):
+        total  = len(self._files)
+        tagged = len(self._tagged_idxs)
+        self._count_lbl.setText(f"{tagged}/{total}")
+
     def _refresh_folder(self):
         path = self.config_.data.get("last_folder", "")
         if path:
@@ -1185,7 +1187,7 @@ class DJTagger(QMainWindow):
         _add_dir(self._file_list.invisibleRootItem(), root_path)
         self._file_list.blockSignals(False)
 
-        self._count_lbl.setText(f"{len(self._files)}")
+        self._refresh_count()
         self._status(f"{len(self._files)} track(s) found.  Click to view tags · double-click to play.")
 
     def _on_item_clicked(self, item: "QTreeWidgetItem"):
@@ -1275,6 +1277,7 @@ class DJTagger(QMainWindow):
             # Only update colours if this item isn't the playing one (keep orange highlight)
             if self._cur_idx != self._play_idx:
                 self._refresh_item_colors(self._cur_idx)
+            self._refresh_count()
         self._update_detail()
         self._status(f"✓  Saved → {Path(self.track_.path).name}" if ok
                      else "✗  Save failed — check file permissions.")
