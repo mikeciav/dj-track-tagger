@@ -17,7 +17,7 @@ A desktop app for tagging your DJ library with genre, vibe, vocal, and instrumen
 
 ### 1. Install VLC
 
-Download and install [VLC media player](https://www.videolan.org/vlc/) for macOS. The Python bindings (`python-vlc`) link against the VLC libraries bundled in the app.
+Download and install [VLC media player](https://www.videolan.org/vlc/) for your OS. The Python bindings (`python-vlc`) link against the VLC libraries bundled in the app.
 
 ### 2. Install dependencies
 
