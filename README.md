@@ -1,4 +1,4 @@
-# DJ Track Tagger
+# Traktor Track Tagger
 
 A desktop app for tagging your DJ library with genre, vibe, vocal, and instrument metadata — written to Traktor Pro 3 compatible ID3 fields.
 
@@ -19,13 +19,11 @@ A desktop app for tagging your DJ library with genre, vibe, vocal, and instrumen
 
 Download and install [VLC media player](https://www.videolan.org/vlc/) for macOS. The Python bindings (`python-vlc`) link against the VLC libraries bundled in the app.
 
-### 2. Install Python dependencies
+### 2. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
-
-> **Note:** If you're on macOS with a Homebrew Python, you may need `pip3` or a specific version e.g. `python3.13 -m pip install -r requirements.txt`.
 
 ### 3. Run
 
