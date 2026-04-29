@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-DJ Track Tagger  —  tag your library, play tracks, write Traktor Pro 3 compatible metadata.
+DJ Track Tagger  —  tag your DJ library and write DJ-software-compatible metadata.
 
 Dependencies:   pip install PyQt6 mutagen python-vlc
 Also needed:    VLC media player  (https://www.videolan.org/vlc/)
 
 Keyboard:  Space=play/pause  ←/→=seek±10s  ↑/↓=prev/next track
-Traktor:   Genre→TCON  Subgenre→TIT1(Grouping)  Vocals/Instruments/Mood→COMM(hashtags)
-Note:      After tagging, do File→Check Consistency in Traktor to reload.
+Tags:      Genre→TCON  Grouping→TIT1  Vocals/Instruments/Vibe→COMM
+Software:  Set target software in Settings to control genre format and post-save hints.
 """
 
 import json
@@ -22,6 +22,13 @@ try:
 except ImportError:
     print("ERROR: pip install mutagen"); sys.exit(1)
 
+from tag_utils import (
+    SOFTWARE_MODES, DEFAULT_SOFTWARE,
+    software_label, multi_genre_allowed,
+    split_genres, join_genres,
+    scan_genre_migration, migrate_genres,
+)
+
 try:
     import vlc as _vlc
     VLC_OK = True
@@ -31,7 +38,7 @@ except ImportError:
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem,
-    QScrollArea, QSplitter, QCheckBox,
+    QScrollArea, QSplitter, QCheckBox, QRadioButton,
     QGridLayout, QHBoxLayout, QVBoxLayout, QLineEdit, QFileDialog,
     QMessageBox, QDialog, QTextEdit, QMenu,
 )
@@ -45,6 +52,7 @@ COLS        = 6
 CONFIG_FILE = Path(__file__).parent / "dj_tagger_config.json"
 
 DEFAULT_CONFIG = {
+    "software": DEFAULT_SOFTWARE,
     "categories": [
         {"name": "Genre", "field": "genre", "multi_select": True,
          "groups": [
@@ -191,6 +199,14 @@ class Config:
     @property
     def categories(self): return self.data["categories"]
 
+    @property
+    def software(self) -> str:
+        return self.data.get("software", DEFAULT_SOFTWARE)
+
+    @software.setter
+    def software(self, val: str):
+        self.data["software"] = val
+
     @staticmethod
     def _cat_tags(cat: dict) -> list:
         """Return all tags for a category, flattening groups if present."""
@@ -204,7 +220,7 @@ class Config:
             n, field = cat["name"], cat["field"]
             all_tags = self._cat_tags(cat)
             if field == "genre":
-                saved = {t.strip() for t in meta.genre.split(";") if t.strip()}
+                saved = split_genres(meta.genre)
                 out[n] = {t for t in all_tags if t in saved}
             elif field == "grouping":
                 out[n] = {t.strip() for t in meta.grouping.split(";") if t.strip()}
@@ -222,7 +238,7 @@ class Config:
             elif field == "grouping": grp.extend(chosen)
             elif field == "comment":
                 px = cat.get("prefix", "#"); comm.extend(px + t for t in chosen)
-        return "; ".join(gp), "; ".join(grp), " ".join(comm)
+        return join_genres(gp, self.software), "; ".join(grp), " ".join(comm)
 
 
 # ── Player ────────────────────────────────────────────────────────────────────
@@ -339,8 +355,9 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.config_ = config
         self.on_save = on_save
+        self._old_software = config.software
         self._idx = 0
-        self.setWindowTitle("Category Settings")
+        self.setWindowTitle("Settings")
         self.setMinimumSize(680, 500)
         self.setModal(True)
         self.setStyleSheet(f"background: {C['bg']}; color: {C['text']};")
@@ -357,8 +374,44 @@ class SettingsDialog(QDialog):
         return b
 
     def _build(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setSpacing(8)
+
+        # ── Software selector ─────────────────────────────────────────────
+        sw_frame = QFrame()
+        sw_frame.setStyleSheet(f"background:{C['panel2']};border-radius:3px;")
+        swl = QHBoxLayout(sw_frame)
+        swl.setContentsMargins(12, 8, 12, 8)
+        swl.setSpacing(20)
+        sw_lbl = QLabel("SOFTWARE")
+        sw_lbl.setStyleSheet(
+            f"color:{C['text_dim']};font-size:9px;font-weight:bold;"
+            f"letter-spacing:1px;background:transparent;"
+        )
+        swl.addWidget(sw_lbl)
+        self._sw_btns: dict = {}
+        for key, mode in SOFTWARE_MODES.items():
+            rb = QRadioButton(mode["label"])
+            rb.setChecked(key == self.config_.software)
+            rb.setStyleSheet(f"""
+                QRadioButton{{color:{C['text']};font-size:11px;spacing:6px;background:transparent;}}
+                QRadioButton::indicator{{
+                    width:12px;height:12px;border-radius:6px;
+                    border:1px solid {C['border2']};background:{C['panel3']};
+                }}
+                QRadioButton::indicator:checked{{
+                    background:{C['accent']};border:1px solid {C['accent']};
+                }}
+                QRadioButton:hover{{color:{C['accent']};}}
+            """)
+            self._sw_btns[key] = rb
+            swl.addWidget(rb)
+        swl.addStretch()
+        outer.addWidget(sw_frame)
+
+        # ── Categories + editor ───────────────────────────────────────────
+        layout = QHBoxLayout()
         layout.setSpacing(8)
 
         # Left: category list
@@ -410,6 +463,8 @@ class SettingsDialog(QDialog):
         bl.addWidget(self._btn("Save changes", self._save, accent=True))
         rl.addLayout(bl)
         layout.addWidget(right)
+
+        outer.addLayout(layout)
 
         self._refresh()
         if self.config_.categories:
@@ -475,7 +530,13 @@ class SettingsDialog(QDialog):
         self._lb.setCurrentRow(self._idx)
 
     def _save(self):
-        self._flush(); self._refresh(); self.config_.save(); self.on_save(); self.accept()
+        new_sw = next((k for k, rb in self._sw_btns.items() if rb.isChecked()), self._old_software)
+        self.config_.data["software"] = new_sw
+        self._flush()
+        self._refresh()
+        self.config_.save()
+        self.on_save(self._old_software, new_sw)
+        self.accept()
 
 
 # ── Main App ──────────────────────────────────────────────────────────────────
@@ -582,7 +643,7 @@ class DJTagger(QMainWindow):
         tl.addWidget(self._folder_lbl)
         tl.addStretch()
 
-        tl.addWidget(self._tbtn("⚙  CATEGORIES", self._open_settings))
+        tl.addWidget(self._tbtn("⚙  SETTINGS", self._open_settings))
         tl.addWidget(self._tbtn("▶  OPEN FOLDER", self._open_folder, accent=True))
         root.addWidget(top)
 
@@ -907,7 +968,10 @@ class DJTagger(QMainWindow):
         """)
         hl = QHBoxLayout(hdr)
         hl.setContentsMargins(10, 6, 10, 6)
-        mode_txt = "SINGLE SELECT" if not cat.get("multi_select", True) else "MULTI SELECT"
+        multi = cat.get("multi_select", True)
+        if cat["field"] == "genre" and not multi_genre_allowed(self.config_.software):
+            multi = False
+        mode_txt = "SINGLE SELECT" if not multi else "MULTI SELECT"
         name_lbl = QLabel(name.upper())
         name_lbl.setStyleSheet(f"color:{color};font-size:10px;font-weight:bold;letter-spacing:2px;background:transparent;border:none;")
         mode_lbl = QLabel(mode_txt)
@@ -1049,9 +1113,12 @@ class DJTagger(QMainWindow):
             cb.blockSignals(True); cb.setChecked(False); cb.blockSignals(False)
             self._status("⚠  Select a track first."); return
         cat  = next(c for c in self.config_.categories if c["name"] == cat_name)
+        multi = cat.get("multi_select", True)
+        if cat["field"] == "genre" and not multi_genre_allowed(self.config_.software):
+            multi = False
         tags = self.selected_.setdefault(cat_name, set())
         if cb.isChecked():
-            if not cat.get("multi_select", True):
+            if not multi:
                 for t, other in self._vars[cat_name].items():
                     if t != tag:
                         other.blockSignals(True); other.setChecked(False); other.blockSignals(False)
@@ -1190,6 +1257,9 @@ class DJTagger(QMainWindow):
         self._refresh_count()
         self._status(f"{len(self._files)} track(s) found.  Click to view tags · double-click to play.")
 
+        if self._files:
+            QTimer.singleShot(0, self._check_folder_format)
+
     def _on_item_clicked(self, item: "QTreeWidgetItem"):
         """Single click — show tags for track items; toggle expand for folder items."""
         idx = item.data(0, Qt.ItemDataRole.UserRole)
@@ -1279,8 +1349,14 @@ class DJTagger(QMainWindow):
                 self._refresh_item_colors(self._cur_idx)
             self._refresh_count()
         self._update_detail()
-        self._status(f"✓  Saved → {Path(self.track_.path).name}" if ok
-                     else "✗  Save failed — check file permissions.")
+        if ok:
+            hint = {
+                "traktor":   " · Run Check Consistency in Traktor to reload",
+                "virtualdj": " · Right-click → Reload Tag in VirtualDJ",
+            }.get(self.config_.software, "")
+            self._status(f"✓  Saved → {Path(self.track_.path).name}{hint}")
+        else:
+            self._status("✗  Save failed — check file permissions.")
 
     # ── Detail panel ──────────────────────────────────────────────────────────
 
@@ -1322,9 +1398,73 @@ class DJTagger(QMainWindow):
     def _open_settings(self):
         SettingsDialog(self, self.config_, self._on_settings_saved).exec()
 
-    def _on_settings_saved(self):
+    def _on_settings_saved(self, old_sw: str, new_sw: str):
         self.selected_ = self.config_.parse(self.track_) if self.track_ else {}
         self._rebuild_tag_panels()
+        if old_sw != new_sw and self._files:
+            confirmed = self._prompt_genre_migration(old_sw, new_sw)
+            if not confirmed:
+                self.config_.data["software"] = old_sw
+                self.config_.save()
+                self._rebuild_tag_panels()
+
+    def _check_folder_format(self):
+        """After a folder loads, detect genre format mismatches and offer to migrate."""
+        changed, lost = scan_genre_migration(self._files, self.config_.software)
+        if changed == 0:
+            return
+        sw_label = software_label(self.config_.software)
+        msg = (f"{changed} track(s) in this folder have genres stored in a different format "
+               f"than your current software setting ({sw_label}).\n\n"
+               f"Convert them to {sw_label} format now?")
+        if lost > 0:
+            msg += (f"\n\n⚠  {lost} track(s) have multiple genres — only the first genre "
+                    f"alphabetically will be kept ({sw_label} supports one genre per track).")
+        reply = QMessageBox.question(
+            self, "Genre Format Mismatch", msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        ok, errors = migrate_genres(self._files, self.config_.software)
+        if errors:
+            QMessageBox.warning(self, "Migration Partial",
+                f"Updated {ok} file(s). {len(errors)} file(s) had errors — check console.")
+        else:
+            self._status(f"✓  Converted {ok} genre format(s) to {sw_label} format.")
+
+    def _prompt_genre_migration(self, old_sw: str, new_sw: str) -> bool:
+        """Scan current folder for genre format mismatches and offer to convert. Returns True if migration completed or not needed."""
+        changed, lost = scan_genre_migration(self._files, new_sw)
+        if changed == 0:
+            return True
+
+        old_label = software_label(old_sw)
+        new_label = software_label(new_sw)
+        msg = (f"Switching from {old_label} to {new_label}.\n\n"
+               f"{changed} track(s) in the current folder have genre formats that need updating.")
+        if lost > 0:
+            msg += (f"\n\n⚠  {lost} track(s) have multiple genres — only the first genre "
+                    f"alphabetically will be kept ({new_label} supports one genre per track).")
+        msg += "\n\nConvert genre formats now?"
+
+        reply = QMessageBox.question(
+            self, "Genre Format Migration", msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return False
+
+        ok, errors = migrate_genres(self._files, new_sw)
+        if errors:
+            QMessageBox.warning(self, "Migration Partial",
+                f"Updated {ok} file(s). {len(errors)} file(s) had errors — check console.")
+        else:
+            self._status(f"✓  Converted {ok} genre format(s) to {new_label} format.")
+        self._refresh_folder()
+        return True
 
     def _status(self, msg: str):
         self.statusBar().showMessage(msg)
