@@ -42,7 +42,7 @@ pip3 install -r requirements.txt
 ### 3. Run
 
 ```bash
-python3 traktor_tagger.py
+python3 dj_track_tagger.py
 ```
 
 ## Usage
