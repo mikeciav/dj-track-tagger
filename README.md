@@ -3,7 +3,7 @@
 A desktop app for tagging your DJ library with genre, vibe, vocal, and instrument metadata — written directly to file metadata and compatible with the major DJ applications.
 
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
-![Tests](https://github.com/mikeciav/traktor-tagger/actions/workflows/tests.yml/badge.svg)
+![Tests](https://github.com/mikeciav/dj-track-tagger/actions/workflows/tests.yml/badge.svg)
 
 ## Features
 
@@ -78,3 +78,14 @@ Tags are stored in `dj_tagger_config.json` alongside the script. Edit this file 
 ```bash
 python3 -m unittest tests -v
 ```
+
+## Reloading tags in your DJ software
+
+After saving tags, your DJ software may need to re-read the file metadata:
+
+| Software | How to reload |
+|---|---|
+| Traktor Pro 3 | File → Check Consistency |
+| Rekordbox | Right-click the track → Reload Tags |
+| Serato DJ | Drag the track out of your library and back in, or re-scan the folder |
+| VirtualDJ | Right-click the track → Reload Tag |
