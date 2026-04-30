@@ -94,6 +94,8 @@ C = {
     "pb_bg":    "#0d0d0d",
     "pb_fill":  "#ff5f1f",
     "pb_head":  "#ffffff",
+    "play_bg":  "#0d2a1a",   # subtle tint — playing track background
+    "play_fg":  "#ff5f1f",   # orange — playing track text
     "cat": {
         "Genre":       "#ff5f1f",   # orange
         "Vibe":        "#f0c040",   # amber
@@ -567,7 +569,7 @@ class DJTagger(QMainWindow):
         self._timer.start(POLL_MS)
 
         if not self.player_.available:
-            self._status("⚠  VLC not found — playback disabled.  pip install python-vlc  +  install VLC.")
+            pass  # VLC unavailable — playback disabled; keyboard shortcuts still work
 
         # Restore last folder (deferred so the window is visible first)
         last = self.config_.data.get("last_folder", "")
@@ -606,7 +608,28 @@ class DJTagger(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Top bar ───────────────────────────────────────────────────────
+        root.addWidget(self._build_top_bar())
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet(f"QSplitter::handle{{background:{C['border']};}}")
+        splitter.addWidget(self._build_track_list_panel())
+        splitter.addWidget(self._build_tag_scroll())
+        splitter.setSizes([340, 800])
+        root.addWidget(splitter, 1)
+
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background:{C['border2']};")
+        root.addWidget(sep)
+
+        root.addWidget(self._build_bottom_bar())
+
+        self.statusBar().hide()
+
+        self._rebuild_tag_panels()
+
+    def _build_top_bar(self) -> QFrame:
         top = QFrame()
         top.setFixedHeight(48)
         top.setStyleSheet(f"""
@@ -617,7 +640,6 @@ class DJTagger(QMainWindow):
         tl.setContentsMargins(16, 0, 10, 0)
         tl.setSpacing(10)
 
-        # Logo mark — a small orange square before the title
         mark = QLabel("▮")
         mark.setStyleSheet(f"color:{C['accent']};font-size:10px;")
         tl.addWidget(mark)
@@ -631,7 +653,6 @@ class DJTagger(QMainWindow):
         """)
         tl.addWidget(ttl)
 
-        # Vertical divider
         div = QFrame()
         div.setFrameShape(QFrame.Shape.VLine)
         div.setFixedHeight(20)
@@ -645,14 +666,9 @@ class DJTagger(QMainWindow):
 
         tl.addWidget(self._tbtn("⚙  SETTINGS", self._open_settings))
         tl.addWidget(self._tbtn("▶  OPEN FOLDER", self._open_folder, accent=True))
-        root.addWidget(top)
+        return top
 
-        # ── Main split ────────────────────────────────────────────────────
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet(f"QSplitter::handle{{background:{C['border']};}}")
-
-        # Left panel: track list only
+    def _build_track_list_panel(self) -> QWidget:
         left = QWidget()
         left.setStyleSheet(f"background:{C['panel']};")
         ll = QVBoxLayout(left)
@@ -677,7 +693,8 @@ class DJTagger(QMainWindow):
         refresh_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         refresh_btn.setToolTip("Reload folder")
         refresh_btn.clicked.connect(self._refresh_folder)
-        hl.addWidget(trk_lbl); hl.addStretch(); hl.addWidget(self._count_lbl); hl.addSpacing(6); hl.addWidget(refresh_btn)
+        hl.addWidget(trk_lbl); hl.addStretch()
+        hl.addWidget(self._count_lbl); hl.addSpacing(6); hl.addWidget(refresh_btn)
         ll.addWidget(hdr)
 
         self._file_list = QTreeWidget()
@@ -718,9 +735,9 @@ class DJTagger(QMainWindow):
         self._file_list.itemClicked.connect(self._on_item_clicked)
         self._file_list.itemDoubleClicked.connect(self._on_item_double_clicked)
         ll.addWidget(self._file_list)
-        splitter.addWidget(left)
+        return left
 
-        # Right panel: scrollable tag checkboxes
+    def _build_tag_scroll(self) -> QScrollArea:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -734,16 +751,14 @@ class DJTagger(QMainWindow):
         self._tag_layout.addStretch()
 
         scroll.setWidget(self._tag_container)
-        splitter.addWidget(scroll)
+        return scroll
 
-        splitter.setSizes([340, 800])
-        root.addWidget(splitter, 1)
-
-        # ── Three-panel bottom bar ────────────────────────────────────────
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background:{C['border2']};")
-        root.addWidget(sep)
+    def _build_bottom_bar(self) -> QFrame:
+        def _vdiv():
+            d = QFrame()
+            d.setFrameShape(QFrame.Shape.VLine)
+            d.setStyleSheet(f"background:{C['border2']};color:{C['border2']};")
+            return d
 
         bottom = QFrame()
         bottom.setStyleSheet(f"background:{C['pb_bg']};")
@@ -752,13 +767,14 @@ class DJTagger(QMainWindow):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
 
-        def _vdiv():
-            d = QFrame()
-            d.setFrameShape(QFrame.Shape.VLine)
-            d.setStyleSheet(f"background:{C['border2']};color:{C['border2']};")
-            return d
+        bl.addWidget(self._build_track_detail_panel())
+        bl.addWidget(_vdiv())
+        bl.addWidget(self._build_transport_panel())
+        bl.addWidget(_vdiv())
+        bl.addWidget(self._build_tag_summary_panel(), 1)
+        return bottom
 
-        # ── Left: track details (same width as track list) ────────────────
+    def _build_track_detail_panel(self) -> QWidget:
         det_panel = QWidget()
         det_panel.setFixedWidth(340)
         det_panel.setStyleSheet(f"background:{C['pb_bg']};")
@@ -786,10 +802,9 @@ class DJTagger(QMainWindow):
         meta_row.addStretch()
         dpl.addLayout(meta_row)
         dpl.addStretch()
-        bl.addWidget(det_panel)
-        bl.addWidget(_vdiv())
+        return det_panel
 
-        # ── Middle: transport controls ────────────────────────────────────
+    def _build_transport_panel(self) -> QWidget:
         ctrl_panel = QWidget()
         ctrl_panel.setFixedWidth(270)
         ctrl_panel.setStyleSheet(f"background:{C['pb_bg']};")
@@ -836,68 +851,41 @@ class DJTagger(QMainWindow):
         btn_row.addWidget(tb("⏩", lambda: self.player_.seek_delta(+SEEK_S)))
         btn_row.addWidget(tb("⏭", self._next))
         cpl.addLayout(btn_row)
-        bl.addWidget(ctrl_panel)
-        bl.addWidget(_vdiv())
+        return ctrl_panel
 
-        # ── Right: selected tags summary ──────────────────────────────────
-        # Layout: Genre and Vibe each on their own line; Vocals + Instruments share a line
+    def _build_tag_summary_panel(self) -> QWidget:
         tags_panel = QWidget()
         tags_panel.setStyleSheet(f"background:{C['pb_bg']};")
         tpl = QVBoxLayout(tags_panel)
         tpl.setContentsMargins(16, 10, 16, 10)
         tpl.setSpacing(5)
 
-        self._tag_row_lbls = {}   # cat_name → QLabel (value)
-        cats = self.config_.categories
+        self._tag_row_lbls = {}
 
-        def _tag_row(cat_names_in_row):
-            """Build one horizontal row with prefix+value labels for each category."""
+        def _tag_row(name):
+            color = C["cat"].get(name, C["accent"])
             row_w = QWidget()
             row_w.setStyleSheet("background:transparent;")
             rhl = QHBoxLayout(row_w)
             rhl.setContentsMargins(0, 0, 0, 0)
             rhl.setSpacing(6)
-            for i, name in enumerate(cat_names_in_row):
-                color = C["cat"].get(name, C["accent"])
-                pfx = QLabel(name.upper() + ":")
-                pfx.setStyleSheet(
-                    f"color:{color};font-size:10px;font-weight:bold;"
-                    f"letter-spacing:1px;background:transparent;"
-                )
-                val = QLabel("—")
-                val.setStyleSheet(f"color:{C['text_dim']};font-size:11px;background:transparent;")
-                self._tag_row_lbls[name] = val
-                rhl.addWidget(pfx)
-                # Last cat in row stretches; others are fixed
-                if i == len(cat_names_in_row) - 1:
-                    rhl.addWidget(val, 1)
-                else:
-                    rhl.addWidget(val)
-                    rhl.addSpacing(16)
+            pfx = QLabel(name.upper() + ":")
+            pfx.setStyleSheet(
+                f"color:{color};font-size:10px;font-weight:bold;"
+                f"letter-spacing:1px;background:transparent;"
+            )
+            val = QLabel("—")
+            val.setStyleSheet(f"color:{C['text_dim']};font-size:11px;background:transparent;")
+            self._tag_row_lbls[name] = val
+            rhl.addWidget(pfx)
+            rhl.addWidget(val, 1)
             return row_w
 
-        # All categories: one per row
-        for cat in cats:
-            tpl.addWidget(_tag_row([cat["name"]]))
+        for cat in self.config_.categories:
+            tpl.addWidget(_tag_row(cat["name"]))
 
         tpl.addStretch()
-        bl.addWidget(tags_panel, 1)
-
-        root.addWidget(bottom)
-
-        # ── Status bar ────────────────────────────────────────────────────
-        sb = self.statusBar()
-        sb.setStyleSheet(f"""
-            background: {C['panel']};
-            color: {C['text_mid']};
-            font-size: 9px;
-            font-family: "Courier New", Menlo;
-            border-top: 1px solid {C['border']};
-            padding-left: 4px;
-        """)
-        self._status("ready — open a folder to begin")
-
-        self._rebuild_tag_panels()
+        return tags_panel
 
     def _tbtn(self, text, cb, accent=False):
         b = QPushButton(text)
@@ -1111,7 +1099,7 @@ class DJTagger(QMainWindow):
     def _on_check(self, cat_name: str, tag: str, cb: QCheckBox):
         if self.track_ is None:
             cb.blockSignals(True); cb.setChecked(False); cb.blockSignals(False)
-            self._status("⚠  Select a track first."); return
+            return
         cat  = next(c for c in self.config_.categories if c["name"] == cat_name)
         multi = cat.get("multi_select", True)
         if cat["field"] == "genre" and not multi_genre_allowed(self.config_.software):
@@ -1141,12 +1129,12 @@ class DJTagger(QMainWindow):
 
     def _play_pause(self):
         if not self.player_.available:
-            self._status("⚠  VLC unavailable."); return
+            return
         # If nothing is playing yet but a track is selected, start playing it
         if not self.player_.is_playing() and self._play_idx is None and self._cur_idx is not None:
             self._play_track(self._cur_idx); return
         if self.track_ is None:
-            self._status("⚠  Select a track first."); return
+            return
         self.player_.toggle()
         self._play_btn.setText("⏸" if self.player_.is_playing() else "▶")
 
@@ -1249,13 +1237,11 @@ class DJTagger(QMainWindow):
                     track_item.setForeground(0, QColor(C["text"] if tagged else C["text_dim"]))
                     self._idx_to_item[idx] = track_item
 
-        self._status(f"Loading…")
         QApplication.processEvents()
         _add_dir(self._file_list.invisibleRootItem(), root_path)
         self._file_list.blockSignals(False)
 
         self._refresh_count()
-        self._status(f"{len(self._files)} track(s) found.  Click to view tags · double-click to play.")
 
         if self._files:
             QTimer.singleShot(0, self._check_folder_format)
@@ -1294,7 +1280,6 @@ class DJTagger(QMainWindow):
         self.selected_ = self.config_.parse(self.track_)
         self._refresh_checks()
         self._update_detail()
-        self._status(f"→  {Path(path).name}")
 
     def _play_track(self, idx: int):
         """Double-click / keyboard nav — start playing this track."""
@@ -1315,15 +1300,14 @@ class DJTagger(QMainWindow):
         self._play_idx = idx
         item = self._idx_to_item.get(idx)
         if item:
-            item.setBackground(0, QColor(C["accent"]))
-            item.setForeground(0, QColor(C["text"]))
+            item.setBackground(0, QColor(C["play_bg"]))
+            item.setForeground(0, QColor(C["play_fg"]))
 
         if self.player_.available:
             self.player_.stop()
             self.player_.load(self._files[idx])
             self.player_.play()
             self._play_btn.setText("⏸")
-        self._status(f"▶  {Path(self._files[idx]).name}")
 
     def _refresh_item_colors(self, idx: int):
         """Restore a non-playing item to its normal tagged/untagged colours."""
@@ -1344,19 +1328,11 @@ class DJTagger(QMainWindow):
                 self._tagged_idxs.add(self._cur_idx)
             else:
                 self._tagged_idxs.discard(self._cur_idx)
-            # Only update colours if this item isn't the playing one (keep orange highlight)
+            # Only update colours if this item isn't the playing one (keep green highlight)
             if self._cur_idx != self._play_idx:
                 self._refresh_item_colors(self._cur_idx)
             self._refresh_count()
         self._update_detail()
-        if ok:
-            hint = {
-                "traktor":   " · Run Check Consistency in Traktor to reload",
-                "virtualdj": " · Right-click → Reload Tag in VirtualDJ",
-            }.get(self.config_.software, "")
-            self._status(f"✓  Saved → {Path(self.track_.path).name}{hint}")
-        else:
-            self._status("✗  Save failed — check file permissions.")
 
     # ── Detail panel ──────────────────────────────────────────────────────────
 
@@ -1431,8 +1407,7 @@ class DJTagger(QMainWindow):
         if errors:
             QMessageBox.warning(self, "Migration Partial",
                 f"Updated {ok} file(s). {len(errors)} file(s) had errors — check console.")
-        else:
-            self._status(f"✓  Converted {ok} genre format(s) to {sw_label} format.")
+
 
     def _prompt_genre_migration(self, old_sw: str, new_sw: str) -> bool:
         """Scan current folder for genre format mismatches and offer to convert. Returns True if migration completed or not needed."""
@@ -1461,13 +1436,8 @@ class DJTagger(QMainWindow):
         if errors:
             QMessageBox.warning(self, "Migration Partial",
                 f"Updated {ok} file(s). {len(errors)} file(s) had errors — check console.")
-        else:
-            self._status(f"✓  Converted {ok} genre format(s) to {new_label} format.")
         self._refresh_folder()
         return True
-
-    def _status(self, msg: str):
-        self.statusBar().showMessage(msg)
 
     def closeEvent(self, e):
         self.player_.stop()
