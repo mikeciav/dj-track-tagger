@@ -1136,26 +1136,21 @@ class DJTagger(QMainWindow):
             return cb
 
         if "groups" in cat:
-            # Render each group with its own sub-header + grid
-            # Wrap groups in an orange-background container; 3px left margin exposes
-            # the orange as one continuous unbroken strip behind all sub-headers and grids.
-            groups_container = QWidget()
-            groups_container.setStyleSheet(f"background:{color};")
-            gcl = QHBoxLayout(groups_container)
-            gcl.setContentsMargins(3, 0, 0, 0)
-            gcl.setSpacing(0)
-
+            # Render each group with its own sub-header + grid.
+            # Each child widget (sub-header, grid, separator) carries its own
+            # border-left so the strip is continuous without a wrapper trick.
+            # Sub-headers have 22px left padding and grids 10px, so no child
+            # widget covers x=0..2, making the CSS border reliable.
             groups_w = QWidget()
             groups_w.setStyleSheet(f"background:{C['panel2']};")
             gvl = QVBoxLayout(groups_w)
             gvl.setContentsMargins(0, 0, 0, 0)
             gvl.setSpacing(0)
-            gcl.addWidget(groups_w)
 
             for gi, group in enumerate(cat["groups"]):
                 # Group sub-header
                 gh = QWidget()
-                gh.setStyleSheet(f"background:{C['panel3']};")
+                gh.setStyleSheet(f"background:{C['panel3']};border-left:3px solid {color};")
                 ghl = QHBoxLayout(gh)
                 ghl.setContentsMargins(22, 4, 10, 4)
                 glbl = QLabel(group["label"].upper())
@@ -1166,7 +1161,7 @@ class DJTagger(QMainWindow):
 
                 # Group checkbox grid
                 grid_w = QWidget()
-                grid_w.setStyleSheet(f"background:{C['panel2']};")
+                grid_w.setStyleSheet(f"background:{C['panel2']};border-left:3px solid {color};")
                 grid = QGridLayout(grid_w)
                 grid.setContentsMargins(10, 6, 10, 8)
                 grid.setHorizontalSpacing(6)
@@ -1178,14 +1173,15 @@ class DJTagger(QMainWindow):
                     grid.setColumnStretch(col, 1)
                 gvl.addWidget(grid_w)
 
-                # Thin separator between groups (not after last)
+                # Thin separator between groups (not after last).
+                # Use a plain QWidget so border-left renders reliably.
                 if gi < len(cat["groups"]) - 1:
-                    sep = QFrame()
-                    sep.setFrameShape(QFrame.Shape.HLine)
-                    sep.setStyleSheet(f"background:{C['border']};max-height:1px;")
+                    sep = QWidget()
+                    sep.setFixedHeight(1)
+                    sep.setStyleSheet(f"background:{C['border']};border-left:3px solid {color};")
                     gvl.addWidget(sep)
 
-            wl.addWidget(groups_container)
+            wl.addWidget(groups_w)
         else:
             # Flat grid
             grid_w = QWidget()
