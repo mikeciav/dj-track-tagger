@@ -1166,7 +1166,7 @@ class DJTagger(QMainWindow):
 
                 # Group checkbox grid
                 grid_w = QWidget()
-                grid_w.setStyleSheet(f"background:{C['panel2']};border-left:3px solid {color};")
+                grid_w.setStyleSheet(f"background:{C['panel2']};")
                 grid = QGridLayout(grid_w)
                 grid.setContentsMargins(10, 6, 10, 8)
                 grid.setHorizontalSpacing(6)
