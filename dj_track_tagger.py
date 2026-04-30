@@ -1137,10 +1137,10 @@ class DJTagger(QMainWindow):
 
         if "groups" in cat:
             # Render each group with its own sub-header + grid.
-            # Each child widget (sub-header, grid, separator) carries its own
-            # border-left so the strip is continuous without a wrapper trick.
-            # Sub-headers have 22px left padding and grids 10px, so no child
-            # widget covers x=0..2, making the CSS border reliable.
+            # Sub-headers use a real 3px strip widget on the left rather than
+            # CSS border-left, because Qt's CSS border on a QWidget with child
+            # widgets is unreliable. Grids and separators have no children
+            # covering x=0..2 so CSS border-left works fine there.
             groups_w = QWidget()
             groups_w.setStyleSheet(f"background:{C['panel2']};")
             gvl = QVBoxLayout(groups_w)
@@ -1148,15 +1148,25 @@ class DJTagger(QMainWindow):
             gvl.setSpacing(0)
 
             for gi, group in enumerate(cat["groups"]):
-                # Group sub-header
+                # Group sub-header: 3px strip widget + content to avoid CSS
+                # border rendering issues with child widgets.
                 gh = QWidget()
-                gh.setStyleSheet(f"background:{C['panel3']};border-left:3px solid {color};")
                 ghl = QHBoxLayout(gh)
-                ghl.setContentsMargins(22, 4, 10, 4)
+                ghl.setContentsMargins(0, 0, 0, 0)
+                ghl.setSpacing(0)
+                gh_strip = QWidget()
+                gh_strip.setFixedWidth(3)
+                gh_strip.setStyleSheet(f"background:{color};")
+                ghl.addWidget(gh_strip)
+                gh_inner = QWidget()
+                gh_inner.setStyleSheet(f"background:{C['panel3']};")
+                gh_inner_l = QHBoxLayout(gh_inner)
+                gh_inner_l.setContentsMargins(19, 4, 10, 4)
                 glbl = QLabel(group["label"].upper())
                 glbl.setStyleSheet(f"color:{color};font-size:8px;font-weight:bold;letter-spacing:2px;background:transparent;")
-                ghl.addWidget(glbl)
-                ghl.addStretch()
+                gh_inner_l.addWidget(glbl)
+                gh_inner_l.addStretch()
+                ghl.addWidget(gh_inner)
                 gvl.addWidget(gh)
 
                 # Group checkbox grid
