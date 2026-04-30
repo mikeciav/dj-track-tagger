@@ -16,7 +16,6 @@
             "Balearic Trance",
             "Tech Trance",
             "Classic Trance",
-            "Full-On Trance",
             "Big Room Trance"
           ]
         },
@@ -34,17 +33,6 @@
           ]
         },
         {
-          "label": "Other",
-          "tags": [
-            "Dubstep",
-            "Hardstyle",
-            "Drum & Bass",
-            "UK Garage",
-            "Hip-Hop",
-            "Ambient"
-          ]
-        },
-        {
           "label": "Techno",
           "tags": [
             "Minimal Techno",
@@ -53,6 +41,17 @@
             "Detroit Techno",
             "Acid Techno",
             "Melodic Techno"
+          ]
+        },
+        {
+          "label": "Other",
+          "tags": [
+            "Dubstep",
+            "Hardstyle",
+            "DnB",
+            "UK Garage",
+            "Hip-Hop",
+            "Ambient"
           ]
         }
       ]
