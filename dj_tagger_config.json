@@ -25,12 +25,23 @@
           "tags": [
             "Deep House",
             "Tech House",
-            "Acid House",
+            "Future House",
             "Prog House",
             "Disco House",
             "Classic House",
             "Trop House",
             "Latin House"
+          ]
+        },
+        {
+          "label": "Other",
+          "tags": [
+            "Dubstep",
+            "Hardstyle",
+            "Drum & Bass",
+            "UK Garage",
+            "Hip-Hop",
+            "Ambient"
           ]
         },
         {
@@ -139,6 +150,6 @@
       ]
     }
   ],
-  "last_folder": "/Users/mike/Music/Trance/aaaasubfolder",
+  "last_folder": "/Users/mike/Music/Trance",
   "software": "traktor"
 }
