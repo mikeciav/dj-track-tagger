@@ -18,7 +18,7 @@ from typing import Optional
 
 try:
     from mutagen import File as MutagenFile
-    from mutagen.id3 import TCON, TIT1, COMM
+    from mutagen.id3 import TCON, TIT1, COMM, POPM
 except ImportError:
     print("ERROR: pip install mutagen"); sys.exit(1)
 
@@ -42,13 +42,13 @@ from PyQt6.QtWidgets import (
     QGridLayout, QHBoxLayout, QVBoxLayout, QLineEdit, QFileDialog,
     QMessageBox, QDialog, QTextEdit, QMenu,
 )
-from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QPoint, QEvent, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QBrush, QCursor, QShortcut, QKeySequence
 
 SUPPORTED   = {".mp3", ".flac", ".aiff", ".aif", ".m4a", ".wav"}
 SEEK_S      = 10
 POLL_MS     = 350
-COLS        = 6
+COLS        = 8
 CONFIG_FILE = Path(__file__).parent / "dj_tagger_config.json"
 
 DEFAULT_CONFIG = {
@@ -97,8 +97,9 @@ C = {
     "play_bg":  "#0d2a1a",   # subtle tint — playing track background
     "play_fg":  "#ff5f1f",   # orange — playing track text
     "cat": {
+        "Rating":      "#f0c040",   # yellow
         "Genre":       "#ff5f1f",   # orange
-        "Vibe":        "#f0c040",   # amber
+        "Vibe":        "#b06cf0",   # purple
         "Vocals":      "#40d490",   # green
         "Instruments": "#40aaff",   # blue
     },
@@ -117,6 +118,7 @@ class TrackMeta:
         self.ext  = Path(path).suffix.lower()
         self.title = self.artist = self.bpm = self.year = self.album = self.mix = ""
         self.genre = self.grouping = self.comment = ""
+        self.rating = 0   # 0–5 stars
         self._read()
 
     def _read(self):
@@ -133,12 +135,18 @@ class TrackMeta:
                 ck = [k for k in t.keys() if k.startswith("COMM")]
                 if ck:
                     fr = t[ck[0]]; self.comment = str(fr.text[0]) if fr.text else ""
+                pk = [k for k in t.keys() if k.startswith("POPM")]
+                if pk: self.rating = min(5, round(t[pk[0]].rating / 51))
             elif self.ext == ".flac":
                 self.title    = self._v(t,"title");    self.artist   = self._v(t,"artist")
                 self.bpm      = self._v(t,"bpm");      self.genre    = self._v(t,"genre")
                 self.grouping = self._v(t,"grouping"); self.comment  = self._v(t,"comment")
                 self.year     = self._v(t,"date");     self.album    = self._v(t,"album")
                 self.mix      = self._v(t,"version")
+                rv = self._v(t, "rating")
+                if rv:
+                    try: self.rating = max(0, min(5, int(rv)))
+                    except ValueError: pass
             elif self.ext == ".m4a":
                 self.title    = self._m(t,"©nam"); self.artist   = self._m(t,"©ART")
                 self.bpm      = self._m(t,"tmpo"); self.genre    = self._m(t,"©gen")
@@ -180,6 +188,30 @@ class TrackMeta:
             return True
         except Exception as e:
             print(f"[save] {Path(self.path).name}: {e}"); return False
+
+    def save_rating(self, stars: int) -> bool:
+        """Write 0–5 star rating: POPM for ID3 formats, 'rating' tag for FLAC."""
+        try:
+            f = MutagenFile(self.path, easy=False)
+            if f is None: return False
+            if f.tags is None: f.add_tags()
+            if self.ext in (".mp3", ".aiff", ".aif", ".wav"):
+                for k in [k for k in f.tags.keys() if k.startswith("POPM")]:
+                    del f.tags[k]
+                if stars > 0:
+                    f.tags.add(POPM(email="no@email", rating=stars * 51, count=0))
+            elif self.ext == ".flac":
+                if stars > 0:
+                    f.tags["rating"] = [str(stars)]
+                elif "rating" in f.tags:
+                    del f.tags["rating"]
+            elif self.ext == ".m4a":
+                pass  # no standard rating atom across DJ software for M4A
+            f.save()
+            self.rating = stars
+            return True
+        except Exception as e:
+            print(f"[save_rating] {Path(self.path).name}: {e}"); return False
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -634,7 +666,7 @@ class DJTagger(QMainWindow):
         top.setFixedHeight(48)
         top.setStyleSheet(f"""
             background: {C['panel']};
-            border-bottom: 2px solid {C['accent']};
+            border-bottom: 2px solid {C['border2']};
         """)
         tl = QHBoxLayout(top)
         tl.setContentsMargins(16, 0, 10, 0)
@@ -752,6 +784,96 @@ class DJTagger(QMainWindow):
 
         scroll.setWidget(self._tag_container)
         return scroll
+
+    def _build_rating_panel(self):
+        color = C["cat"]["Rating"]
+        self._star_btns = []
+
+        wrapper = QWidget()
+        wrapper.setStyleSheet(f"background:{C['bg']};")
+        wl = QVBoxLayout(wrapper)
+        wl.setContentsMargins(12, 16, 12, 0)
+        wl.setSpacing(0)
+
+        # Single row: label left, stars right — same visual treatment as category headers
+        row = QFrame()
+        row.setStyleSheet(f"""
+            QFrame {{
+                background: {C['panel2']};
+                border-left: 3px solid {color};
+                border-top: 1px solid {C['border']};
+            }}
+        """)
+        hl = QHBoxLayout(row)
+        hl.setContentsMargins(10, 6, 10, 6)
+        hl.setSpacing(6)
+        name_lbl = QLabel("RATING")
+        name_lbl.setStyleSheet(
+            f"color:{color};font-size:10px;font-weight:bold;"
+            f"letter-spacing:2px;background:transparent;border:none;"
+        )
+        hl.addWidget(name_lbl)
+        hl.addStretch()
+        for i in range(1, 6):
+            btn = QPushButton("★")
+            btn.setFixedSize(22, 22)
+            btn.setFlat(True)
+            btn.setStyleSheet(
+                f"QPushButton{{background:transparent;color:{C['text_dim']};"
+                f"font-size:14px;border:none;padding:0;}}"
+            )
+            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            btn.clicked.connect(lambda checked, n=i: self._set_rating(n))
+            btn.setProperty("star_index", i)
+            btn.installEventFilter(self)
+            self._star_btns.append(btn)
+            hl.addWidget(btn)
+        wl.addWidget(row)
+
+        div = QFrame()
+        div.setFrameShape(QFrame.Shape.HLine)
+        div.setStyleSheet(f"color:{C['border']};background:{C['border']};max-height:1px;")
+        wl.addWidget(div)
+
+        self._tag_layout.insertWidget(self._tag_layout.count() - 1, wrapper)
+
+    def eventFilter(self, obj, event):
+        if hasattr(self, "_star_btns") and obj in self._star_btns:
+            if event.type() == QEvent.Type.Enter:
+                self._preview_rating(obj.property("star_index"))
+            elif event.type() == QEvent.Type.Leave:
+                self._preview_rating(0)
+        return super().eventFilter(obj, event)
+
+    def _preview_rating(self, preview: int):
+        """Render stars using preview if nonzero, otherwise the track's actual rating."""
+        actual = self.track_.rating if self.track_ else 0
+        display = preview if preview > 0 else actual
+        for i, btn in enumerate(self._star_btns):
+            filled = i < display
+            btn.setStyleSheet(
+                f"QPushButton{{background:transparent;"
+                f"color:{C['cat']['Rating'] if filled else C['text_dim']};"
+                f"font-size:15px;border:none;padding:0;}}"
+            )
+
+    def _update_rating_strip(self):
+        self._preview_rating(0)
+        rating = self.track_.rating if self.track_ else 0
+        color = C["cat"]["Rating"]
+        if rating:
+            self._rating_summary_lbl.setText("★" * rating + "☆" * (5 - rating))
+            self._rating_summary_lbl.setStyleSheet(f"color:{color};font-size:11px;background:transparent;")
+        else:
+            self._rating_summary_lbl.setText("—")
+            self._rating_summary_lbl.setStyleSheet(f"color:{C['text_dim']};font-size:11px;background:transparent;")
+
+    def _set_rating(self, stars: int):
+        if not self.track_: return
+        if stars == self.track_.rating:
+            stars = 0   # click the current rating to clear it
+        self.track_.save_rating(stars)
+        self._update_rating_strip()
 
     def _build_bottom_bar(self) -> QFrame:
         def _vdiv():
@@ -881,6 +1003,24 @@ class DJTagger(QMainWindow):
             rhl.addWidget(val, 1)
             return row_w
 
+        # Rating row first
+        color = C["cat"]["Rating"]
+        rating_row = QWidget()
+        rating_row.setStyleSheet("background:transparent;")
+        rrl = QHBoxLayout(rating_row)
+        rrl.setContentsMargins(0, 0, 0, 0)
+        rrl.setSpacing(6)
+        rating_pfx = QLabel("RATING:")
+        rating_pfx.setStyleSheet(
+            f"color:{color};font-size:10px;font-weight:bold;"
+            f"letter-spacing:1px;background:transparent;"
+        )
+        self._rating_summary_lbl = QLabel("—")
+        self._rating_summary_lbl.setStyleSheet(f"color:{C['text_dim']};font-size:11px;background:transparent;")
+        rrl.addWidget(rating_pfx)
+        rrl.addWidget(self._rating_summary_lbl, 1)
+        tpl.addWidget(rating_row)
+
         for cat in self.config_.categories:
             tpl.addWidget(_tag_row(cat["name"]))
 
@@ -932,9 +1072,11 @@ class DJTagger(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
         self._vars.clear()
+        self._build_rating_panel()
         for cat in self.config_.categories:
             self._build_cat_panel(cat)
         self._refresh_checks()
+        self._update_rating_strip()
 
     def _build_cat_panel(self, cat: dict):
         name  = cat["name"]
@@ -995,11 +1137,20 @@ class DJTagger(QMainWindow):
 
         if "groups" in cat:
             # Render each group with its own sub-header + grid
+            # Wrap groups in an orange-background container; 3px left margin exposes
+            # the orange as one continuous unbroken strip behind all sub-headers and grids.
+            groups_container = QWidget()
+            groups_container.setStyleSheet(f"background:{color};")
+            gcl = QHBoxLayout(groups_container)
+            gcl.setContentsMargins(3, 0, 0, 0)
+            gcl.setSpacing(0)
+
             groups_w = QWidget()
             groups_w.setStyleSheet(f"background:{C['panel2']};")
             gvl = QVBoxLayout(groups_w)
             gvl.setContentsMargins(0, 0, 0, 0)
             gvl.setSpacing(0)
+            gcl.addWidget(groups_w)
 
             for gi, group in enumerate(cat["groups"]):
                 # Group sub-header
@@ -1034,7 +1185,7 @@ class DJTagger(QMainWindow):
                     sep.setStyleSheet(f"background:{C['border']};max-height:1px;")
                     gvl.addWidget(sep)
 
-            wl.addWidget(groups_w)
+            wl.addWidget(groups_container)
         else:
             # Flat grid
             grid_w = QWidget()
@@ -1192,6 +1343,7 @@ class DJTagger(QMainWindow):
         self.track_ = None; self._cur_idx = None; self._play_idx = None; self.selected_ = {}
         self._refresh_checks()
         self._update_detail()
+        self._update_rating_strip()
 
         # Persist last folder
         self.config_.data["last_folder"] = path
@@ -1280,6 +1432,7 @@ class DJTagger(QMainWindow):
         self.selected_ = self.config_.parse(self.track_)
         self._refresh_checks()
         self._update_detail()
+        self._update_rating_strip()
 
     def _play_track(self, idx: int):
         """Double-click / keyboard nav — start playing this track."""
