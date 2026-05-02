@@ -1136,73 +1136,62 @@ class DJTagger(QMainWindow):
             return cb
 
         if "groups" in cat:
-            # All groups share ONE QGridLayout so columns align across groups.
-            # Layout: [strip_w 3px] [inner: shared grid]
-            # Grid col 0 is a fixed 10px spacer giving checkboxes left padding;
-            # sub-headers span all COLS+1 cols so their background fills flush
-            # to the left edge of inner. Strip widget provides the orange bar.
-            outer = QWidget()
-            outer_l = QHBoxLayout(outer)
-            outer_l.setContentsMargins(0, 0, 0, 0)
-            outer_l.setSpacing(0)
+            # Render each group with its own sub-header + grid.
+            # Sub-headers use a real 3px strip widget on the left rather than
+            # CSS border-left, because Qt's CSS border on a QWidget with child
+            # widgets is unreliable. Grids and separators have no children
+            # covering x=0..2 so CSS border-left works fine there.
+            groups_w = QWidget()
+            groups_w.setStyleSheet(f"background:{C['panel2']};")
+            gvl = QVBoxLayout(groups_w)
+            gvl.setContentsMargins(0, 0, 0, 0)
+            gvl.setSpacing(0)
 
-            strip_w = QWidget()
-            strip_w.setFixedWidth(3)
-            strip_w.setStyleSheet(f"background:{color};")
-            outer_l.addWidget(strip_w)
-
-            inner = QWidget()
-            inner.setStyleSheet(f"background:{C['panel2']};")
-            sgrid = QGridLayout(inner)
-            sgrid.setContentsMargins(0, 0, 10, 0)
-            sgrid.setHorizontalSpacing(6)
-            sgrid.setVerticalSpacing(4)
-            # Col 0: fixed 10px spacer for checkbox left padding (no stretch).
-            # Cols 1..COLS: equal stretch for checkboxes.
-            sgrid.setColumnMinimumWidth(0, 10)
-            sgrid.setColumnStretch(0, 0)
-            for col in range(1, COLS + 1):
-                sgrid.setColumnStretch(col, 1)
-
-            crow = 0
             for gi, group in enumerate(cat["groups"]):
-                # Sub-header spans all COLS+1 columns so its background is
-                # flush to the left edge; internal 22px left margin aligns
-                # the label with the checkbox content.
+                # Group sub-header: 3px strip widget + content to avoid CSS
+                # border rendering issues with child widgets.
                 gh = QWidget()
-                gh.setStyleSheet(f"background:{C['panel3']};")
                 ghl = QHBoxLayout(gh)
-                ghl.setContentsMargins(22, 4, 10, 4)
+                ghl.setContentsMargins(0, 0, 0, 0)
+                ghl.setSpacing(0)
+                gh_strip = QWidget()
+                gh_strip.setFixedWidth(3)
+                gh_strip.setStyleSheet(f"background:{color};")
+                ghl.addWidget(gh_strip)
+                gh_inner = QWidget()
+                gh_inner.setStyleSheet(f"background:{C['panel3']};")
+                gh_inner_l = QHBoxLayout(gh_inner)
+                gh_inner_l.setContentsMargins(19, 4, 10, 4)
                 glbl = QLabel(group["label"].upper())
                 glbl.setStyleSheet(f"color:{color};font-size:8px;font-weight:bold;letter-spacing:2px;background:transparent;")
-                ghl.addWidget(glbl)
-                ghl.addStretch()
-                sgrid.addWidget(gh, crow, 0, 1, COLS + 1)
-                crow += 1
+                gh_inner_l.addWidget(glbl)
+                gh_inner_l.addStretch()
+                ghl.addWidget(gh_inner)
+                gvl.addWidget(gh)
 
-                # Checkboxes in cols 1..COLS (col 0 is the spacer)
-                tags = group["tags"]
-                n_rows = math.ceil(len(tags) / COLS)
-                for i, tag in enumerate(tags):
-                    sgrid.addWidget(_make_cb(tag), crow + (i % n_rows), 1 + (i // n_rows))
-                crow += n_rows
+                # Group checkbox grid
+                grid_w = QWidget()
+                grid_w.setStyleSheet(f"background:{C['panel2']};border-left:3px solid {color};")
+                grid = QGridLayout(grid_w)
+                grid.setContentsMargins(10, 6, 10, 8)
+                grid.setHorizontalSpacing(6)
+                grid.setVerticalSpacing(4)
+                n_rows = math.ceil(len(group["tags"]) / COLS)
+                for i, tag in enumerate(group["tags"]):
+                    grid.addWidget(_make_cb(tag), i % n_rows, i // n_rows)
+                for col in range(COLS):
+                    grid.setColumnStretch(col, 1)
+                gvl.addWidget(grid_w)
 
-                # 8px bottom padding row after each group's checkboxes
-                pad = QWidget()
-                pad.setFixedHeight(8)
-                sgrid.addWidget(pad, crow, 0, 1, COLS + 1)
-                crow += 1
-
-                # Thin separator between groups (not after last)
+                # Thin separator between groups (not after last).
+                # Use a plain QWidget so border-left renders reliably.
                 if gi < len(cat["groups"]) - 1:
                     sep = QWidget()
                     sep.setFixedHeight(1)
-                    sep.setStyleSheet(f"background:{C['border']};")
-                    sgrid.addWidget(sep, crow, 0, 1, COLS + 1)
-                    crow += 1
+                    sep.setStyleSheet(f"background:{C['border']};border-left:3px solid {color};")
+                    gvl.addWidget(sep)
 
-            outer_l.addWidget(inner)
-            wl.addWidget(outer)
+            wl.addWidget(groups_w)
         else:
             # Flat grid
             grid_w = QWidget()
