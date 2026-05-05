@@ -16,7 +16,6 @@
             "Balearic Trance",
             "Tech Trance",
             "Classic Trance",
-            "Full-On Trance",
             "Big Room Trance"
           ]
         },
@@ -25,7 +24,7 @@
           "tags": [
             "Deep House",
             "Tech House",
-            "Acid House",
+            "Future House",
             "Prog House",
             "Disco House",
             "Classic House",
@@ -42,6 +41,17 @@
             "Detroit Techno",
             "Acid Techno",
             "Melodic Techno"
+          ]
+        },
+        {
+          "label": "Other",
+          "tags": [
+            "Dubstep",
+            "Hardstyle",
+            "DnB",
+            "UK Garage",
+            "Hip-Hop",
+            "Ambient"
           ]
         }
       ]
@@ -139,6 +149,6 @@
       ]
     }
   ],
-  "last_folder": "/Users/mike/Music/Trance/aaaasubfolder",
+  "last_folder": "/Users/mike/Music/Trance",
   "software": "traktor"
 }
