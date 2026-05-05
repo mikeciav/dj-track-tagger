@@ -5,6 +5,9 @@ A desktop app for tagging your DJ library with genre, vibe, vocal, and instrumen
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
 ![Tests](https://github.com/mikeciav/dj-track-tagger/actions/workflows/tests.yml/badge.svg)
 
+![DJ Track Tagger UI](assets/screenshot.png)
+
+
 ## Features
 
 - Browse a folder of tracks (including subfolders) and tag them with a click
