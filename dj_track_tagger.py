@@ -853,7 +853,7 @@ class DJTagger(QMainWindow):
             filled = i < display
             btn.setStyleSheet(
                 f"QPushButton{{background:transparent;"
-                f"color:{C['cat']['Rating'] if filled else C['text_dim']};"
+                f"color:{C['cat']['Energy'] if filled else C['text_dim']};"
                 f"font-size:15px;border:none;padding:0;}}"
             )
 
