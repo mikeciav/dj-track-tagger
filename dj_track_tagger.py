@@ -579,7 +579,7 @@ class DJTagger(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("DJ Track Tagger")
-        self.resize(1140, 800)
+        self.resize(1280, 920)
         self.setMinimumSize(900, 620)
 
         self.config_   = Config()
