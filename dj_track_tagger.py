@@ -97,7 +97,7 @@ C = {
     "play_bg":  "#0d2a1a",   # subtle tint — playing track background
     "play_fg":  "#ff5f1f",   # orange — playing track text
     "cat": {
-        "Rating":      "#f0c040",   # yellow
+        "Energy":      "#f0c040",   # yellow
         "Genre":       "#ff5f1f",   # orange
         "Vibe":        "#b06cf0",   # purple
         "Vocals":      "#40d490",   # green
@@ -786,7 +786,7 @@ class DJTagger(QMainWindow):
         return scroll
 
     def _build_rating_panel(self):
-        color = C["cat"]["Rating"]
+        color = C["cat"]["Energy"]
         self._star_btns = []
 
         wrapper = QWidget()
@@ -807,7 +807,7 @@ class DJTagger(QMainWindow):
         hl = QHBoxLayout(row)
         hl.setContentsMargins(10, 6, 10, 6)
         hl.setSpacing(6)
-        name_lbl = QLabel("RATING")
+        name_lbl = QLabel("ENERGY")
         name_lbl.setStyleSheet(
             f"color:{color};font-size:10px;font-weight:bold;"
             f"letter-spacing:2px;background:transparent;border:none;"
@@ -853,14 +853,14 @@ class DJTagger(QMainWindow):
             filled = i < display
             btn.setStyleSheet(
                 f"QPushButton{{background:transparent;"
-                f"color:{C['cat']['Rating'] if filled else C['text_dim']};"
+                f"color:{C['cat']['Energy'] if filled else C['text_dim']};"
                 f"font-size:15px;border:none;padding:0;}}"
             )
 
     def _update_rating_strip(self):
         self._preview_rating(0)
         rating = self.track_.rating if self.track_ else 0
-        color = C["cat"]["Rating"]
+        color = C["cat"]["Energy"]
         if rating:
             self._rating_summary_lbl.setText("★" * rating + "☆" * (5 - rating))
             self._rating_summary_lbl.setStyleSheet(f"color:{color};font-size:11px;background:transparent;")
@@ -1004,13 +1004,13 @@ class DJTagger(QMainWindow):
             return row_w
 
         # Rating row first
-        color = C["cat"]["Rating"]
+        color = C["cat"]["Energy"]
         rating_row = QWidget()
         rating_row.setStyleSheet("background:transparent;")
         rrl = QHBoxLayout(rating_row)
         rrl.setContentsMargins(0, 0, 0, 0)
         rrl.setSpacing(6)
-        rating_pfx = QLabel("RATING:")
+        rating_pfx = QLabel("ENERGY:")
         rating_pfx.setStyleSheet(
             f"color:{color};font-size:10px;font-weight:bold;"
             f"letter-spacing:1px;background:transparent;"
